@@ -8,8 +8,11 @@ DECLARE
 
   EXEC spDrop '#ProtocolIDs'
 
+  --SET @DATESTART = DATEADD(DAY, -1, GETDATE())
   SET @DATESTART = GETDATE()
   SET @DISTRIBUTEBYDAYS = 7
+  
+  SELECT @DATESTART
 
   SELECT 
     ID = ROW_NUMBER() OVER (ORDER BY Created),
@@ -56,6 +59,18 @@ DECLARE
     SET Created = DATEADD(DAY, -@DAYS, Created)
     WHERE ID IN (SELECT tmpp.ProtocolID FROM #ProtocolIDs tmpp WHERE tmpp.[Distributed] = 1 AND tmpp.[Day] = @DAYS) 
    
+   -- ПРОБЫ !!!
+    UPDATE pm.Probe
+    SET Created = DATEADD(DAY, -@DAYS, Created)
+    WHERE ID IN (
+          SELECT ProbeID FROM pm.ProtocolNode WITH(NOLOCK, NOEXPAND) 
+          WHERE ProtocolID IN (
+            SELECT tmpp.ProtocolID FROM #ProtocolIDs tmpp 
+            WHERE tmpp.[Distributed] = 1 AND tmpp.[Day] = @DAYS          
+          ) 
+          GROUP BY ProbeID    
+    )
+
     UPDATE lx.Inquiry
     SET 
       Received = DATEADD(DAY, -@DAYS - 1, Received),
@@ -76,6 +91,15 @@ DECLARE
   WHERE ID IN (SELECT ProtocolID FROM #ProtocolIDs)
   ORDER BY Created
   
+  SELECT * FROM pm.Probe (NOLOCK)
+  WHERE ID IN (
+    SELECT ProbeID FROM pm.ProtocolNode WITH(NOLOCK, NOEXPAND) 
+    WHERE ProtocolID IN (
+      SELECT tmpp.ProtocolID FROM #ProtocolIDs tmpp
+    )
+  )
+  ORDER BY Created
+
   SELECT * FROM lx.Inquiry (NOLOCK)
   WHERE ID IN (
     SELECT InquiryID FROM pm.ProtocolNode WITH(NOLOCK, NOEXPAND) 
@@ -86,4 +110,3 @@ DECLARE
   ORDER BY Received
 
   SELECT * FROM #ProtocolIDs
-  
